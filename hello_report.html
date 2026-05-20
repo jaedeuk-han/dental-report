@@ -545,17 +545,9 @@ async function gasPost(body){
   try{
     const res=await fetch(GAS_URL,{
       method:'POST',
-      mode:'no-cors',
+      headers:{'Content-Type':'text/plain'},
       body:JSON.stringify(body)
     });
-    return {ok:true};
-  }catch(e){return {ok:false};}
-}
-async function gasGet(body){
-  try{
-    // GET 방식으로 쿼리스트링에 실어서 요청 (no-cors 우회)
-    const params=encodeURIComponent(JSON.stringify(body));
-    const res=await fetch(GAS_URL+'?data='+params,{method:'GET',mode:'cors'});
     const json=await res.json();
     return json;
   }catch(e){return {ok:false};}
@@ -572,9 +564,17 @@ async function storeSave(data){
 }
 async function storeLoad(){
   try{
+    const json=await gasPost({action:'load'});
+    if(json.ok&&json.payload){
+      const data=JSON.parse(json.payload);
+      try{localStorage.setItem(STORE_KEY,JSON.stringify(data));}catch(e){}
+      return data;
+    }
     const local=localStorage.getItem(STORE_KEY);
     return local?JSON.parse(local):null;
-  }catch(e){return null;}
+  }catch(e){
+    try{const r=localStorage.getItem(STORE_KEY);return r?JSON.parse(r):null;}catch(e2){return null;}
+  }
 }
 async function storeClear(){
   try{await gasPost({action:'save',payload:JSON.stringify({})});}catch(e){}
@@ -2077,7 +2077,18 @@ function buildYoY(){
 // ══════════════════════════════════════
 const CLL_KEY='dental_cliniclog_v1';
 async function cllLoad(){
-  try{const r=localStorage.getItem(CLL_KEY);return r?JSON.parse(r):[];}catch(e){return[];}
+  try{
+    const json=await gasPost({action:'loadlog',sheet:'cliniclog'});
+    if(json.ok&&json.payload){
+      const data=JSON.parse(json.payload);
+      try{localStorage.setItem(CLL_KEY,JSON.stringify(data));}catch(e){}
+      return data;
+    }
+    const local=localStorage.getItem(CLL_KEY);
+    return local?JSON.parse(local):[];
+  }catch(e){
+    try{const r=localStorage.getItem(CLL_KEY);return r?JSON.parse(r):[];}catch(e2){return[];}
+  }
 }
 async function cllSave(logs){
   try{
@@ -2297,7 +2308,18 @@ function renderClinicLog(){
 // ══════════════════════════════════════
 const CL_KEY='dental_carelog_v1';
 async function clLoad(){
-  try{const r=localStorage.getItem(CL_KEY);return r?JSON.parse(r):[];}catch(e){return[];}
+  try{
+    const json=await gasPost({action:'loadlog',sheet:'carelog'});
+    if(json.ok&&json.payload){
+      const data=JSON.parse(json.payload);
+      try{localStorage.setItem(CL_KEY,JSON.stringify(data));}catch(e){}
+      return data;
+    }
+    const local=localStorage.getItem(CL_KEY);
+    return local?JSON.parse(local):[];
+  }catch(e){
+    try{const r=localStorage.getItem(CL_KEY);return r?JSON.parse(r):[];}catch(e2){return[];}
+  }
 }
 async function clSave(logs){
   try{

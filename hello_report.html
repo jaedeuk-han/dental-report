@@ -567,7 +567,9 @@ async function storeLoad(){
   try{
     const json=await gasPost({action:'load'});
     if(json.ok&&json.payload){
-      const data=JSON.parse(json.payload);
+      let data=json.payload;
+      if(typeof data==='string') data=JSON.parse(data);
+      if(typeof data==='string') data=JSON.parse(data);
       try{localStorage.setItem(STORE_KEY,JSON.stringify(data));}catch(e){}
       return data;
     }

@@ -2081,8 +2081,9 @@ async function cllLoad(){
     const json=await gasPost({action:'loadlog',sheet:'cliniclog'});
     if(json.ok&&json.payload){
       const data=JSON.parse(json.payload);
-      try{localStorage.setItem(CLL_KEY,JSON.stringify(data));}catch(e){}
-      return data;
+      const arr=Array.isArray(data)?data:[];
+      try{localStorage.setItem(CLL_KEY,JSON.stringify(arr));}catch(e){}
+      return arr;
     }
     const local=localStorage.getItem(CLL_KEY);
     return local?JSON.parse(local):[];
@@ -2270,7 +2271,7 @@ function renderClinicLog(){
   el.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px">로딩 중...</div>';
   const kw=document.getElementById('cll-search')?.value.trim().toLowerCase()||'';
   cllLoad().then(allLogs=>{
-    let logs=allLogs.sort((a,b)=>b.date.localeCompare(a.date));
+    let logs=(Array.isArray(allLogs)?allLogs:[]).sort((a,b)=>b.date.localeCompare(a.date));
     if(cllFilterCat!=='all')logs=logs.filter(l=>l.category===cllFilterCat);
     if(kw)logs=logs.filter(l=>
       (l.name||'').toLowerCase().includes(kw)||
@@ -2312,8 +2313,9 @@ async function clLoad(){
     const json=await gasPost({action:'loadlog',sheet:'carelog'});
     if(json.ok&&json.payload){
       const data=JSON.parse(json.payload);
-      try{localStorage.setItem(CL_KEY,JSON.stringify(data));}catch(e){}
-      return data;
+      const arr=Array.isArray(data)?data:[];
+      try{localStorage.setItem(CL_KEY,JSON.stringify(arr));}catch(e){}
+      return arr;
     }
     const local=localStorage.getItem(CL_KEY);
     return local?JSON.parse(local):[];
@@ -2485,6 +2487,7 @@ function renderCareLog(){
   const now=new Date();
   const curYm=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   clLoad().then(logs=>{
+    logs=Array.isArray(logs)?logs:[];
     const active=logs.filter(l=>!l.done);
     const done=logs.filter(l=>l.done&&l.doneYm===curYm);
     const countEl=document.getElementById('cl-active-count');

@@ -556,9 +556,9 @@ async function gasPost(body){
 
 async function storeSave(data){
   try{
-    await gasPost({action:'save',payload:data});
+    const result=await gasPost({action:'save',payload:data});
     try{localStorage.setItem(STORE_KEY,JSON.stringify(data));}catch(e){}
-    return true;
+    return result&&result.ok;
   }catch(e){
     try{localStorage.setItem(STORE_KEY,JSON.stringify(data));return true;}catch(e2){alert('저장 실패');return false;}
   }
@@ -566,10 +566,9 @@ async function storeSave(data){
 async function storeLoad(){
   try{
     const json=await gasPost({action:'load'});
-    if(json.ok&&json.payload){
+    if(json&&json.ok&&json.payload!=null){
       let data=json.payload;
-      if(typeof data==='string') data=JSON.parse(data);
-      if(typeof data==='string') data=JSON.parse(data);
+      while(typeof data==='string') data=JSON.parse(data);
       try{localStorage.setItem(STORE_KEY,JSON.stringify(data));}catch(e){}
       return data;
     }
@@ -580,7 +579,7 @@ async function storeLoad(){
   }
 }
 async function storeClear(){
-  try{await gasPost({action:'save',payload:JSON.stringify({})});}catch(e){}
+  try{await gasPost({action:'save',payload:{}});}catch(e){}
   localStorage.removeItem(STORE_KEY);
 }
 
@@ -2082,8 +2081,9 @@ const CLL_KEY='dental_cliniclog_v1';
 async function cllLoad(){
   try{
     const json=await gasPost({action:'loadlog',sheet:'cliniclog'});
-    if(json.ok&&json.payload){
-      const data=JSON.parse(json.payload);
+    if(json&&json.ok&&json.payload!=null){
+      let data=json.payload;
+      while(typeof data==='string') data=JSON.parse(data);
       const arr=Array.isArray(data)?data:[];
       try{localStorage.setItem(CLL_KEY,JSON.stringify(arr));}catch(e){}
       return arr;
@@ -2096,7 +2096,7 @@ async function cllLoad(){
 }
 async function cllSave(logs){
   try{
-    await gasPost({action:'savelog',sheet:'cliniclog',payload:JSON.stringify(logs)});
+    await gasPost({action:'savelog',sheet:'cliniclog',payload:logs});
     try{localStorage.setItem(CLL_KEY,JSON.stringify(logs));}catch(e){}
   }catch(e){
     try{localStorage.setItem(CLL_KEY,JSON.stringify(logs));}catch(e2){alert('저장 실패');}
@@ -2314,10 +2314,9 @@ const CL_KEY='dental_carelog_v1';
 async function clLoad(){
   try{
     const json=await gasPost({action:'loadlog',sheet:'carelog'});
-    if(json.ok&&json.payload){
+    if(json&&json.ok&&json.payload!=null){
       let data=json.payload;
-      if(typeof data==='string') data=JSON.parse(data);
-      if(typeof data==='string') data=JSON.parse(data);
+      while(typeof data==='string') data=JSON.parse(data);
       const arr=Array.isArray(data)?data:[];
       try{localStorage.setItem(CL_KEY,JSON.stringify(arr));}catch(e){}
       return arr;

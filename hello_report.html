@@ -2313,7 +2313,9 @@ async function clLoad(){
   try{
     const json=await gasPost({action:'loadlog',sheet:'carelog'});
     if(json.ok&&json.payload){
-      const data=JSON.parse(json.payload);
+      let data=json.payload;
+      if(typeof data==='string') data=JSON.parse(data);
+      if(typeof data==='string') data=JSON.parse(data);
       const arr=Array.isArray(data)?data:[];
       try{localStorage.setItem(CL_KEY,JSON.stringify(arr));}catch(e){}
       return arr;

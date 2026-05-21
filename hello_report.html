@@ -599,18 +599,16 @@ const CREDS={
   'chaeminho':   {pw:'730101',     role:'viewer',  name:'채민호'},
   // 데모 계정 (순수 뷰어)
   'guest':       {pw:'hello',      role:'viewer',  name:'Guest'},
-  // CARE LOG 담당자
-  'kimkyunjoo':  {pw:'941116',     role:'staff',   name:'김경주'},
+  // 직원 (CARE LOG + CLINIC LOG 등록/조회 + 분석 조회)
+  'kimkyungjoo': {pw:'941116',     role:'staff',   name:'김경주'},
   'yangyunju':   {pw:'940322',     role:'staff',   name:'양윤주'},
   'choijinhee':  {pw:'891207',     role:'staff',   name:'최진희'},
-  // CLINIC LOG 작성 가능
-  'kimsangyeol': {pw:'790911',     role:'clinicstaff', name:'김상열'},
+  'kimsangyeol': {pw:'790911',     role:'staff',   name:'김상열'},
 };
 // role 정리:
-// admin        → 전체 (데이터 관리 + CLINIC LOG 등록/조회)
-// clinicstaff  → CLINIC LOG 등록/조회 + 분석 탭 조회 (데이터 관리 없음)
-// staff        → CARE LOG 입력 + 분석 탭 조회 (데이터 관리 없음)
-// viewer       → 조회 전용 (CARE LOG 입력 불가)
+// admin    → 전체 (데이터 관리 + 모든 로그 등록/조회 + 분석)
+// staff    → CLINIC LOG + CARE LOG 등록/조회 + 분석 조회 (데이터 관리 없음)
+// viewer   → 조회 전용 (로그 입력 불가)
 
 let me=null;let meRole=null;let meName=null;
 function doLogin(){
@@ -628,26 +626,23 @@ function doLogin(){
     // 데이터 관리 탭: 관리자만
     const uploadTab=document.querySelector('.nav-tab[onclick*="upload"]');
     if(uploadTab)uploadTab.style.display=meRole==='admin'?'':'none';
-    // CLINIC LOG 등록 폼: admin + clinicstaff
+    // CLINIC LOG 등록 폼: admin + staff
     const cllForm=document.getElementById('cll-form-wrap');
-    if(cllForm)cllForm.style.display=(meRole==='admin'||meRole==='clinicstaff')?'block':'none';
-    // CARE LOG 입력 폼: admin + staff + clinicstaff (viewer는 숨김)
+    if(cllForm)cllForm.style.display=(meRole==='admin'||meRole==='staff')?'block':'none';
+    // CARE LOG 입력 폼: admin + staff (viewer는 숨김)
     const clForm=document.getElementById('cl-form-wrap');
     if(clForm)clForm.style.display=(meRole==='viewer')?'none':'block';
-    // staff는 CARE LOG 탭으로 시작, viewer는 기간별 분석으로 시작
-    if(meRole==='staff'){
-      const careTab=document.querySelector('.nav-tab[onclick*="carelog"]');
-      if(careTab)careTab.click();
-    } else if(meRole==='viewer'){
-      storeLoad().then(saved=>{if(saved){db=saved;refreshAll();}});
+    // 데이터 로드 (모든 사용자)
+    storeLoad().then(saved=>{if(saved){db=saved;refreshAll();}});
+    // 시작 화면: admin은 데이터 관리, 나머지는 기간별 분석
+    if(meRole==='admin'){
+      renderStorageBoard();
+    } else {
       const monthlyTab=document.querySelector('.nav-tab[onclick*="monthly"]');
       if(monthlyTab)monthlyTab.click();
-    } else {
-      storeLoad().then(saved=>{if(saved){db=saved;refreshAll();}});
-      renderStorageBoard();
     }
-    // staff CARE LOG 담당자 자동 선택
-    if(meRole==='staff'){
+    // staff CARE LOG 담당자 자동 선택 (김상열은 제외 - clinic 담당)
+    if(meRole==='staff'&&['김경주','양윤주','최진희'].includes(meName)){
       setTimeout(()=>{
         document.querySelectorAll('.cl-select-btn[data-group="staff"]').forEach(b=>{
           if(b.dataset.val===meName){b.click();}
@@ -2092,10 +2087,13 @@ async function cllLoad(){
     try{const r=localStorage.getItem(CLL_KEY);return r?JSON.parse(r):[];}catch(e2){return[];}
   }
 }
+function cllLoadLocal(){
+  try{const r=localStorage.getItem(CLL_KEY);return r?JSON.parse(r):[];}catch(e){return[];}
+}
 async function cllSave(logs){
   try{
-    await gasPost({action:'savelog',sheet:'cliniclog',payload:logs});
     try{localStorage.setItem(CLL_KEY,JSON.stringify(logs));}catch(e){}
+    await gasPost({action:'savelog',sheet:'cliniclog',payload:logs});
   }catch(e){
     try{localStorage.setItem(CLL_KEY,JSON.stringify(logs));}catch(e2){alert('저장 실패');}
   }
@@ -2269,37 +2267,44 @@ function cllFormatDetail(l){
 function renderClinicLog(){
   const el=document.getElementById('cll-list');
   if(!el)return;
-  el.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px">로딩 중...</div>';
   const kw=document.getElementById('cll-search')?.value.trim().toLowerCase()||'';
+  // 즉시 로컬 데이터 표시
+  drawCllList(cllLoadLocal(),kw);
+  // 백그라운드에서 서버 동기화
   cllLoad().then(allLogs=>{
-    let logs=(Array.isArray(allLogs)?allLogs:[]).sort((a,b)=>b.date.localeCompare(a.date));
-    if(cllFilterCat!=='all')logs=logs.filter(l=>l.category===cllFilterCat);
-    if(kw)logs=logs.filter(l=>
-      (l.name||'').toLowerCase().includes(kw)||
-      (l.memo||'').toLowerCase().includes(kw)||
-      (l.model||'').toLowerCase().includes(kw)||
-      (l.sub||'').toLowerCase().includes(kw)
-    );
-    if(logs.length===0){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px">등록된 항목이 없습니다</div>';return;}
-    el.innerHTML=logs.map(l=>{
-      const color=CLL_CAT_COLOR[l.category]||'#6b6b6b';
-      const detail=cllFormatDetail(l);
-      return `<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid ${color};border-radius:var(--r-md);padding:14px 16px;margin-bottom:10px">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <span style="font-size:11px;font-weight:600;color:${color};background:${color}18;padding:2px 8px;border-radius:12px">${l.category}</span>
-            <span style="font-size:13px;font-weight:600;color:var(--text-primary)">${l.name||''}</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;margin-left:12px">
-            <span style="font-size:11px;color:var(--text-muted)">${l.date} · ${l.team}</span>
-            <button onclick="cllDelete(${l.id})" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;padding:0" title="삭제">✕</button>
-          </div>
-        </div>
-        ${detail?`<div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px">${detail}</div>`:''}
-        ${l.memo?`<div style="font-size:13px;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap">${l.memo}</div>`:''}
-      </div>`;
-    }).join('');
+    drawCllList(allLogs,kw);
   });
+}
+function drawCllList(allLogs,kw){
+  const el=document.getElementById('cll-list');
+  if(!el)return;
+  let logs=(Array.isArray(allLogs)?allLogs:[]).sort((a,b)=>b.date.localeCompare(a.date));
+  if(cllFilterCat!=='all')logs=logs.filter(l=>l.category===cllFilterCat);
+  if(kw)logs=logs.filter(l=>
+    (l.name||'').toLowerCase().includes(kw)||
+    (l.memo||'').toLowerCase().includes(kw)||
+    (l.model||'').toLowerCase().includes(kw)||
+    (l.sub||'').toLowerCase().includes(kw)
+  );
+  if(logs.length===0){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px">등록된 항목이 없습니다</div>';return;}
+  el.innerHTML=logs.map(l=>{
+    const color=CLL_CAT_COLOR[l.category]||'#6b6b6b';
+    const detail=cllFormatDetail(l);
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid ${color};border-radius:var(--r-md);padding:14px 16px;margin-bottom:10px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:11px;font-weight:600;color:${color};background:${color}18;padding:2px 8px;border-radius:12px">${l.category}</span>
+          <span style="font-size:13px;font-weight:600;color:var(--text-primary)">${l.name||''}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;margin-left:12px">
+          <span style="font-size:11px;color:var(--text-muted)">${l.date} · ${l.team}</span>
+          <button onclick="cllDelete(${l.id})" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;padding:0" title="삭제">✕</button>
+        </div>
+      </div>
+      ${detail?`<div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px">${detail}</div>`:''}
+      ${l.memo?`<div style="font-size:13px;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap">${l.memo}</div>`:''}
+    </div>`;
+  }).join('');
 }
 
 // ══════════════════════════════════════
@@ -2325,10 +2330,13 @@ async function clLoad(){
     try{const r=localStorage.getItem(CL_KEY);return r?JSON.parse(r):[];}catch(e2){return[];}
   }
 }
+function clLoadLocal(){
+  try{const r=localStorage.getItem(CL_KEY);return r?JSON.parse(r):[];}catch(e){return[];}
+}
 async function clSave(logs){
   try{
-    await gasPost({action:'savelog',sheet:'carelog',payload:logs});
     try{localStorage.setItem(CL_KEY,JSON.stringify(logs));}catch(e){}
+    await gasPost({action:'savelog',sheet:'carelog',payload:logs});
   }catch(e){
     try{localStorage.setItem(CL_KEY,JSON.stringify(logs));}catch(e2){alert('저장 실패');}
   }
@@ -2486,27 +2494,31 @@ function clCardHtml(l,isDone){
 }
 
 function renderCareLog(){
+  // 즉시 로컬 표시
+  drawCareLogList(clLoadLocal());
+  // 백그라운드 동기화
+  clLoad().then(logs=>drawCareLogList(logs));
+}
+function drawCareLogList(logs){
   const now=new Date();
   const curYm=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-  clLoad().then(logs=>{
-    logs=Array.isArray(logs)?logs:[];
-    const active=logs.filter(l=>!l.done);
-    const done=logs.filter(l=>l.done&&l.doneYm===curYm);
-    const countEl=document.getElementById('cl-active-count');
-    if(countEl)countEl.textContent=active.length>0?`(${active.length}건)`:'';
-    const activeEl=document.getElementById('cl-active-list');
-    if(activeEl){
-      activeEl.innerHTML=active.length===0
-        ?'<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">진행 중인 케어 로그가 없습니다</div>'
-        :active.map(l=>clCardHtml(l,false)).join('');
-    }
-    const doneEl=document.getElementById('cl-done-list');
-    if(doneEl){
-      doneEl.innerHTML=done.length===0
-        ?'<div style="padding:12px;color:var(--text-muted);font-size:13px">이번달 완료 항목 없음</div>'
-        :done.map(l=>clCardHtml(l,true)).join('');
-    }
-  });
+  logs=Array.isArray(logs)?logs:[];
+  const active=logs.filter(l=>!l.done);
+  const done=logs.filter(l=>l.done&&l.doneYm===curYm);
+  const countEl=document.getElementById('cl-active-count');
+  if(countEl)countEl.textContent=active.length>0?`(${active.length}건)`:'';
+  const activeEl=document.getElementById('cl-active-list');
+  if(activeEl){
+    activeEl.innerHTML=active.length===0
+      ?'<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">진행 중인 케어 로그가 없습니다</div>'
+      :active.map(l=>clCardHtml(l,false)).join('');
+  }
+  const doneEl=document.getElementById('cl-done-list');
+  if(doneEl){
+    doneEl.innerHTML=done.length===0
+      ?'<div style="padding:12px;color:var(--text-muted);font-size:13px">이번달 완료 항목 없음</div>'
+      :done.map(l=>clCardHtml(l,true)).join('');
+  }
 }
 
 </script>
